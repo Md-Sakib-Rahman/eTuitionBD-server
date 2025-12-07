@@ -26,6 +26,7 @@ const UserSchema = new mongoose.Schema(
       default:
         "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp",
     },
+    
     tutorData: {
       bio: { type: String },
       qualifications: { type: String },
@@ -33,10 +34,14 @@ const UserSchema = new mongoose.Schema(
       hourlyRate: { type: Number },
       experience: { type: Number },
       averageRating: { type: Number, default: 0 },
+      phone: { type: String }, 
+      address: { type: String },
     },
     studentData: {
       grade: { type: String },
       institute: { type: String },
+      phone: { type: String }, 
+      address: { type: String },
     },
   },
   {

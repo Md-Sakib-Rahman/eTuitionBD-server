@@ -131,6 +131,34 @@ app.get("/my-user", verifyToken, async (req, res) => {
     const result = await User.findOne(query);
     res.send(result);   
 })
+
+app.patch("/users/me", verifyToken, async (req, res) => {
+  const email = req.user.email; 
+  const updates = req.body; 
+
+  try {
+    const query = { email: email };
+    
+    const updateDoc = {
+      $set: {
+        studentData: updates.studentData,
+      }
+    };
+
+    const result = await User.updateOne(query, updateDoc);
+    
+    if (result.modifiedCount === 0) {
+        return res.status(400).send({ success: false, message: "No changes made" });
+    }
+
+    res.send({ success: true, message: "Profile Updated" });
+  } catch (error) {
+    console.error("Update Error:", error);
+    res.status(500).send({ message: "Failed to update profile" });
+  }
+});
+
+
 app.get("/", (req, res) => {
   res.send("eTutionBD is running");
 });
