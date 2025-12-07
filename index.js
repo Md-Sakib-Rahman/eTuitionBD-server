@@ -133,28 +133,56 @@ app.get("/my-user", verifyToken, async (req, res) => {
 })
 
 app.patch("/users/me", verifyToken, async (req, res) => {
-  const email = req.user.email; 
-  const updates = req.body; 
-
+  const { email, role } = req.user; // From JWT
+  const updates = req.body;
+  
   try {
+  
+    if (updates.tutorData && role !== 'tutor') {
+        return res.status(403).send({ 
+            success: false, 
+            message: "Forbidden: Students cannot update tutor profiles." 
+        });
+    }
+
+   
+    if (updates.studentData && role !== 'student') {
+        return res.status(403).send({ 
+            success: false, 
+            message: "Forbidden: Tutors cannot update student profiles." 
+        });
+    }
+
+   
+    
     const query = { email: email };
     
     const updateDoc = {
       $set: {
-        studentData: updates.studentData,
+       
+        ...(updates.tutorData && { tutorData: updates.tutorData }),
+        ...(updates.studentData && { studentData: updates.studentData }),
+        
+        
+        ...(updates.name && { name: updates.name }),
+        ...(updates.image && { image: updates.image }),
       }
     };
 
-    const result = await User.updateOne(query, updateDoc);
+   
     
-    if (result.modifiedCount === 0) {
-        return res.status(400).send({ success: false, message: "No changes made" });
-    }
+    const result = await User.updateOne(query, updateDoc);
 
-    res.send({ success: true, message: "Profile Updated" });
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ success: false, message: "User not found" });
+    }
+    
+    
+    res.send({ success: true, message: "Profile Updated Successfully" });
+
   } catch (error) {
     console.error("Update Error:", error);
-    res.status(500).send({ message: "Failed to update profile" });
+    res.status(500).send({ success: false, message: "Failed to update profile" });
   }
 });
 
