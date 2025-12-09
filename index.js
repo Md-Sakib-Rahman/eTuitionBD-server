@@ -66,6 +66,18 @@ const verifyToken = (req, res, next) => {
     next();
   });
 };
+const verifyAdmin = async (req, res, next) => {
+  const email = req.user.email;
+  const query = { email: email };
+  const user = await User.findOne(query);
+  const isAdmin = user?.role === 'admin';
+  if (!isAdmin) {
+    return res.status(403).send({ message: 'forbidden access' });
+  }
+  next();
+}
+
+
 app.post("/jwt", async (req, res) => {
   
   
@@ -275,18 +287,18 @@ app.get("/posts/:id/applications", verifyToken, async (req, res) => {
   try {
     const post = await StudentPost.findById(req.params.id);
     
-    // Security check...
+   
     if (post.studentId.toString() !== req.user.id) {
         return res.status(403).send({ message: "Forbidden" });
     }
 
-    // USE THE IMPORTED VARIABLE HERE
+    
     const applications = await JobApplication.find({ postId: req.params.id })
         .populate("tutorId", "name email image tutorData");
         
     res.send(applications);
   } catch (err) {
-    console.error("App Fetch Error:", err); // Log the actual error
+    console.error("App Fetch Error:", err); 
     res.status(500).send({ message: "Error fetching applications" });
   }
 });
@@ -295,7 +307,7 @@ app.post("/apply-job", verifyToken, async (req, res) => {
     // We will build this logic later, but here is the placeholder
     res.send({ success: true, message: "Application Submitted" });
 });
-// PUT /posts/:id - Edit an existing post
+
 app.put("/posts/:id", verifyToken, async (req, res) => {
     try {
         const postId = req.params.id;
@@ -361,7 +373,7 @@ app.put("/posts/:id", verifyToken, async (req, res) => {
     }
 });
 
-// GET /all-posts - Public API to fetch all available tuition jobs
+
 app.get("/all-posts", async (req, res) => {
   try {
     // 1. Filter Logic
@@ -383,11 +395,73 @@ app.get("/all-posts", async (req, res) => {
 });
 
 
+// ADMIN ROUTES ONLY
+
+app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+    const result = await User.find();
+    res.send(result);
+});
+
+app.get('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const id = req.params.id;
+        
+        // Find user by ID
+        const user = await User.findById(id);
+        
+        if (!user) {
+            return res.status(404).send({ message: "User not found" });
+        }
+
+        res.send(user);
+    } catch (error) {
+        console.error("Fetch User Error:", error);
+        res.status(500).send({ message: "Failed to fetch user data" });
+    }
+});
 
 
+app.patch("/users/admin-update/:id", verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const { name, role, status } = req.body;
+        
+        const updateDoc = {
+            $set: {
+                name: name,    
+                role: role,    
+                status: status 
+            }
+        };
+
+        const result = await User.updateOne({ _id: id }, updateDoc);
+        res.send(result);
+        
+    } catch (error) {
+        console.error("Admin Update User Error:", error);
+        res.status(500).send({ message: "Failed to update user" });
+    }
+});
 
 
+app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const id = req.params.id;
+        
+       
+        const result = await User.findByIdAndDelete(id);
+        
+        if (!result) {
+             return res.status(404).send({ message: "User not found" });
+        }
 
+        res.send({ success: true, message: "User deleted successfully", result });
+        
+    } catch (error) {
+        console.error("Admin Delete User Error:", error);
+        res.status(500).send({ message: "Failed to delete user" });
+    }
+});
 
 
 app.delete("/posts/:id", verifyToken, async (req, res) => {
@@ -425,6 +499,21 @@ app.delete("/posts/:id", verifyToken, async (req, res) => {
     res.status(500).send({ success: false, message: "Failed to delete post" });
   }
 });
+
+app.get('/admin/tuitions', verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const result = await StudentPost.find()
+            .populate('studentId', 'name email image') 
+            .sort({ createdAt: -1 }); 
+        res.send(result);
+    } catch (error) {
+        console.error("Admin Tuition Fetch Error:", error);
+        res.status(500).send({ message: "Failed to fetch tuitions" });
+    }
+});
+
+
+
 app.get("/", (req, res) => {
   res.send("eTutionBD is running");
 });
