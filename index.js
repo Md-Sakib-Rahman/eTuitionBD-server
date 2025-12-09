@@ -286,12 +286,24 @@ app.get("/posts/:id", verifyToken, async (req, res) => {
 app.get("/posts/:postId/check-application", verifyToken, async (req, res) => {
     try {
         const { postId } = req.params;
-        const tutorId = req.user.id; 
+        const tutorId = req.user.id;
 
-        
         const application = await JobApplication.findOne({ postId, tutorId });
 
-        res.send({ hasApplied: !!application }); // Returns true if found, false otherwise
+        if (application) {
+            
+            res.send({ 
+                hasApplied: true, 
+                status: application.status 
+            });
+        } else {
+         
+            res.send({ 
+                hasApplied: false, 
+                status: null 
+            });
+        }
+
     } catch (error) {
         console.error("Check App Error:", error);
         res.status(500).send({ message: "Error checking application status" });
@@ -411,12 +423,12 @@ app.put("/posts/:id", verifyToken, async (req, res) => {
             
         };
 
-        // Remove undefined fields (if frontend sent partial data)
+      
         Object.keys(allowedUpdates).forEach(key => 
             allowedUpdates[key] === undefined && delete allowedUpdates[key]
         );
 
-        // 5. Update in Database
+        
         const updatedPost = await StudentPost.findByIdAndUpdate(
             postId, 
             { $set: allowedUpdates }, 
@@ -477,6 +489,69 @@ app.get("/all-posts", async (req, res) => {
 });
 
 
+app.delete("/my-applications/:id", verifyToken, async (req, res) => {
+  try {
+    const applicationId = req.params.id;
+    const tutorId = req.user.id; 
+
+  
+    const application = await JobApplication.findOne({ 
+        _id: applicationId, 
+        tutorId: tutorId 
+    });
+
+    if (!application) {
+      return res.status(404).send({ success: false, message: "Application not found" });
+    }
+
+    
+    if (application.status === 'accepted') { 
+      return res.status(400).send({ 
+          success: false, 
+          message: "Cannot cancel an application after you have been hired." 
+      });
+    }
+
+   
+    await JobApplication.findByIdAndDelete(applicationId);
+
+    res.send({ success: true, message: "Application withdrawn successfully" });
+
+  } catch (error) {
+    console.error("Delete App Error:", error);
+    res.status(500).send({ success: false, message: "Failed to withdraw application" });
+  }
+});
+
+
+app.patch("/applications/:id/reject", verifyToken, async (req, res) => {
+  try {
+    const applicationId = req.params.id;
+    const userId = req.user.id;
+
+    
+    const application = await JobApplication.findById(applicationId).populate('postId');
+
+    if (!application) {
+      return res.status(404).send({ message: "Application not found" });
+    }
+
+    
+    if (application.postId.studentId.toString() !== userId) {
+        return res.status(403).send({ message: "Forbidden: You do not own this post." });
+    }
+
+   
+    application.status = 'rejected';
+    await application.save();
+
+    res.send({ success: true, message: "Application rejected" });
+
+  } catch (error) {
+    console.error("Reject App Error:", error);
+    res.status(500).send({ message: "Failed to reject application" });
+  }
+});
 // ADMIN ROUTES ONLY
 
 app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
