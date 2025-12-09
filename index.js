@@ -283,29 +283,94 @@ app.get("/posts/:id", verifyToken, async (req, res) => {
   }
 });
 
+app.get("/posts/:postId/check-application", verifyToken, async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const tutorId = req.user.id; 
+
+        
+        const application = await JobApplication.findOne({ postId, tutorId });
+
+        res.send({ hasApplied: !!application }); // Returns true if found, false otherwise
+    } catch (error) {
+        console.error("Check App Error:", error);
+        res.status(500).send({ message: "Error checking application status" });
+    }
+});
+
 app.get("/posts/:id/applications", verifyToken, async (req, res) => {
   try {
-    const post = await StudentPost.findById(req.params.id);
+    const postId = req.params.id;
+    const userId = req.user.id; 
+
     
-   
-    if (post.studentId.toString() !== req.user.id) {
-        return res.status(403).send({ message: "Forbidden" });
+    const post = await StudentPost.findById(postId);
+
+    if (!post) {
+      return res.status(404).send({ message: "Post not found" });
     }
 
     
-    const applications = await JobApplication.find({ postId: req.params.id })
+    if (post.studentId.toString() !== userId) {
+        return res.status(403).send({ 
+            success: false, 
+            message: "Forbidden: You are not the author of this post." 
+        });
+    }
+
+   
+    const applications = await JobApplication.find({ postId: postId })
         .populate("tutorId", "name email image tutorData");
         
     res.send(applications);
+
   } catch (err) {
-    console.error("App Fetch Error:", err); 
+    console.error("Fetch Applications Error:", err);
     res.status(500).send({ message: "Error fetching applications" });
   }
 });
-
 app.post("/apply-job", verifyToken, async (req, res) => {
-    // We will build this logic later, but here is the placeholder
-    res.send({ success: true, message: "Application Submitted" });
+    try {
+        const { postId } = req.body;
+        const tutorId = req.user.id; 
+
+        if (req.user.role !== 'tutor') {
+             return res.status(403).send({ 
+                 success: false, 
+                 message: "Forbidden: Only tutors can apply for jobs." 
+             });
+        }
+
+        const existingApplication = await JobApplication.findOne({ postId, tutorId });
+        if (existingApplication) {
+            return res.status(400).send({ 
+                success: false, 
+                message: "You have already applied for this job." 
+            });
+        }
+
+        
+        const newApplication = new JobApplication({
+            postId: postId,
+            tutorId: tutorId,
+            status: 'pending' 
+        });
+
+        const result = await newApplication.save();
+
+        res.send({ 
+            success: true, 
+            message: "Application submitted successfully!", 
+            data: result 
+        });
+
+    } catch (error) {
+        console.error("Apply Job Error:", error);
+        res.status(500).send({ 
+            success: false, 
+            message: "Failed to submit application. Please try again." 
+        });
+    }
 });
 
 app.put("/posts/:id", verifyToken, async (req, res) => {
@@ -372,19 +437,36 @@ app.put("/posts/:id", verifyToken, async (req, res) => {
         });
     }
 });
+app.get("/my-applications", verifyToken, async (req, res) => {
+    try {
+        const tutorId = req.user.id; 
 
+        if (req.user.role !== 'tutor') {
+            return res.status(403).send({ message: "Forbidden access" });
+        }
+
+        const applications = await JobApplication.find({ tutorId: tutorId })
+            .populate({
+                path: 'postId',
+                select: 'subject classGrade budget status studentId'
+            });
+
+        res.send(applications);
+
+    } catch (error) {
+        console.error("Fetch My Apps Error:", error);
+        res.status(500).send({ message: "Failed to fetch applications" });
+    }
+});
 
 app.get("/all-posts", async (req, res) => {
   try {
-    // 1. Filter Logic
-    // Only show jobs that are 'pending' (available for application)
-    const query = { status: 'pending' };
+    
+    const query = { status: 'approved' };
 
-    // 2. Fetch & Sort
-    // Sort by newest first (-1)
     const posts = await StudentPost.find(query)
       .sort({ createdAt: -1 })
-      .select("-__v"); // Optional: Exclude internal version key
+      .select("-__v"); 
 
     res.send(posts);
 
@@ -513,6 +595,49 @@ app.get('/admin/tuitions', verifyToken, verifyAdmin, async (req, res) => {
 });
 
 
+app.get('/admin/tuitions/:id', verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const post = await StudentPost.findById(id).populate('studentId', 'name email image phone studentData');
+        
+        if (!post) {
+            return res.status(404).send({ message: "Post not found" });
+        }
+        res.send(post);
+    } catch (error) {
+        console.error("Admin Post Fetch Error:", error);
+        res.status(500).send({ message: "Failed to fetch post" });
+    }
+});
+
+
+app.patch('/admin/tuitions/:id', verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const { status } = req.body; // Expecting 'approved' or 'rejected'
+        
+        // Security: Validate status
+        if(!['approved', 'rejected', 'pending'].includes(status)){
+             return res.status(400).send({ message: "Invalid status" });
+        }
+
+        const result = await StudentPost.updateOne({ _id: id }, { $set: { status: status } });
+        res.send(result);
+    } catch (error) {
+        console.error("Admin Update Error:", error);
+        res.status(500).send({ message: "Failed to update status" });
+    }
+});
+
+
+app.delete('/admin/tuitions/:id', verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const result = await StudentPost.findByIdAndDelete(req.params.id);
+        res.send(result);
+    } catch (error) {
+        res.status(500).send({ message: "Failed to delete post" });
+    }
+});
 
 app.get("/", (req, res) => {
   res.send("eTutionBD is running");
