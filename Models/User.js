@@ -36,6 +36,12 @@ const UserSchema = new mongoose.Schema(
       averageRating: { type: Number, default: 0 },
       phone: { type: String }, 
       address: { type: String },
+      wallet: {
+        balance: { type: Number, default: 0 },       
+        pendingBalance: { type: Number, default: 0 },
+        totalEarnings: { type: Number, default: 0 }, 
+        withdrawn: { type: Number, default: 0 }      
+    }
     },
     studentData: {
       grade: { type: String },

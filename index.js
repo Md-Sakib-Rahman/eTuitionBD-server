@@ -8,6 +8,8 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const mongoURI = process.env.MONGODB_URI;
 const User = require("./Models/User");
+const StudentPost = require("./Models/StudentPost");
+const JobApplication = require("./Models/JobApplication"); 
 app.use(express.json());
 app.use(cors({
   origin: ['http://localhost:5173'],
@@ -187,6 +189,242 @@ app.patch("/users/me", verifyToken, async (req, res) => {
 });
 
 
+app.post("/posts", verifyToken, async (req, res) => {
+  try {
+    
+    if (req.user.role !== 'student') {
+        return res.status(403).send({ 
+            success: false, 
+            message: "Forbidden: Only students can create tuition posts." 
+        });
+    }
+
+    
+    const student = await User.findById(req.user.id);
+    
+    if (!student) {
+        return res.status(404).send({ success: false, message: "User not found" });
+    }
+
+    
+    const newPost = new StudentPost({
+        ...req.body,               
+        studentId: student._id,    
+        studentName: student.name, 
+        studentEmail: student.email, 
+
+        status: 'pending', 
+        paymentStatus: 'unpaid',
+        assignedTutorId: null
+    });
+
+    const result = await newPost.save();
+    
+    res.send({ 
+        success: true, 
+        message: "Job Posted Successfully", 
+        post: result 
+    });
+
+  } catch (error) {
+    console.error("Post Creation Error:", error);
+    res.status(500).send({ 
+        success: false, 
+        message: "Failed to create post. Please check your inputs." 
+    });
+  }
+});
+
+app.get("/my-posts", verifyToken, async (req, res) => {
+  try {
+   
+    if (req.user.role !== 'student') {
+        return res.status(403).send({ 
+            success: false, 
+            message: "Forbidden: Only students can view their own posts." 
+        });
+    }
+
+    
+    const query = { studentId: req.user.id };
+    
+    const posts = await StudentPost.find(query).sort({ createdAt: -1 });
+
+    res.send(posts);
+
+  } catch (error) {
+    console.error("Fetch Error:", error);
+    res.status(500).send({ success: false, message: "Failed to fetch posts" });
+  }
+});
+
+app.get("/posts/:id", verifyToken, async (req, res) => {
+  try {
+    const post = await StudentPost.findById(req.params.id)
+     
+      .populate("studentId", "name email image studentData"); 
+      
+    res.send(post);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error fetching post" });
+  }
+});
+
+app.get("/posts/:id/applications", verifyToken, async (req, res) => {
+  try {
+    const post = await StudentPost.findById(req.params.id);
+    
+    // Security check...
+    if (post.studentId.toString() !== req.user.id) {
+        return res.status(403).send({ message: "Forbidden" });
+    }
+
+    // USE THE IMPORTED VARIABLE HERE
+    const applications = await JobApplication.find({ postId: req.params.id })
+        .populate("tutorId", "name email image tutorData");
+        
+    res.send(applications);
+  } catch (err) {
+    console.error("App Fetch Error:", err); // Log the actual error
+    res.status(500).send({ message: "Error fetching applications" });
+  }
+});
+
+app.post("/apply-job", verifyToken, async (req, res) => {
+    // We will build this logic later, but here is the placeholder
+    res.send({ success: true, message: "Application Submitted" });
+});
+// PUT /posts/:id - Edit an existing post
+app.put("/posts/:id", verifyToken, async (req, res) => {
+    try {
+        const postId = req.params.id;
+        const updates = req.body;
+        const userId = req.user.id; 
+
+        
+        const post = await StudentPost.findById(postId);
+
+        if (!post) {
+            return res.status(404).send({ success: false, message: "Post not found" });
+        }
+
+        if (post.studentId.toString() !== userId) {
+            return res.status(403).send({ 
+                success: false, 
+                message: "Forbidden: You can only edit your own posts." 
+            });
+        }
+
+        if (post.status !== 'pending' && post.status !== 'active') {
+            return res.status(400).send({ 
+                success: false, 
+                message: "Cannot edit a post that is already booked or completed." 
+            });
+        }
+
+        
+        const allowedUpdates = {
+            subject: updates.subject,
+            classGrade: updates.classGrade,
+            medium: updates.medium,
+            duration: Number(updates.duration),
+            budget: Number(updates.budget),
+            description: updates.description,
+            
+        };
+
+        // Remove undefined fields (if frontend sent partial data)
+        Object.keys(allowedUpdates).forEach(key => 
+            allowedUpdates[key] === undefined && delete allowedUpdates[key]
+        );
+
+        // 5. Update in Database
+        const updatedPost = await StudentPost.findByIdAndUpdate(
+            postId, 
+            { $set: allowedUpdates }, 
+            { new: true, runValidators: true } 
+        );
+
+        res.send({ 
+            success: true, 
+            message: "Post updated successfully", 
+            post: updatedPost 
+        });
+
+    } catch (error) {
+        console.error("Edit Post Error:", error);
+        res.status(500).send({ 
+            success: false, 
+            message: "Failed to update post." 
+        });
+    }
+});
+
+// GET /all-posts - Public API to fetch all available tuition jobs
+app.get("/all-posts", async (req, res) => {
+  try {
+    // 1. Filter Logic
+    // Only show jobs that are 'pending' (available for application)
+    const query = { status: 'pending' };
+
+    // 2. Fetch & Sort
+    // Sort by newest first (-1)
+    const posts = await StudentPost.find(query)
+      .sort({ createdAt: -1 })
+      .select("-__v"); // Optional: Exclude internal version key
+
+    res.send(posts);
+
+  } catch (error) {
+    console.error("Public Feed Error:", error);
+    res.status(500).send({ success: false, message: "Failed to fetch job feed" });
+  }
+});
+
+
+
+
+
+
+
+
+
+app.delete("/posts/:id", verifyToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.id; 
+
+    const post = await StudentPost.findById(postId);
+
+    if (!post) {
+      return res.status(404).send({ success: false, message: "Post not found" });
+    }
+
+    if (post.studentId.toString() !== userId) {
+      return res.status(403).send({ 
+        success: false, 
+        message: "Forbidden: You can only delete your own posts." 
+      });
+    }
+
+    if (post.status === "booked" || post.status === "completed") {
+      return res.status(400).send({ 
+        success: false, 
+        message: "Cannot delete a booked job. Please cancel it instead." 
+      });
+    }
+
+    await StudentPost.findByIdAndDelete(postId);
+
+
+    res.send({ success: true, message: "Post deleted successfully" });
+
+  } catch (error) {
+    console.error("Delete Error:", error);
+    res.status(500).send({ success: false, message: "Failed to delete post" });
+  }
+});
 app.get("/", (req, res) => {
   res.send("eTutionBD is running");
 });
