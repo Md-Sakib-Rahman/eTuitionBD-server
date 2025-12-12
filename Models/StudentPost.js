@@ -8,19 +8,21 @@ const StudentPostSchema = new mongoose.Schema(
       required: true,
     },
 
-    // --- JOB DETAILS ---
+   
     subject: { type: String, required: true }, 
     description: { type: String, required: true }, 
     classGrade: { type: String, required: true },
     medium: { type: String, required: true  },
 
-    // --- LOCATION (MANDATORY for Challenges) ---
-    // You must keep these to pass the "Filter by Location" challenge 
-    // Even for online tuition, this represents where the student is from.
+   
     district: { type: String, required: true },
     area: { type: String, required: true },
-
-    // --- LOGISTICS ---
+    onboardStatus: {
+      type: String,
+      enum: ["onGoing", "completed", "waiting"],
+      default: "waiting", 
+    },
+    
     duration: {
       type: Number, 
       required: true,
@@ -30,7 +32,7 @@ const StudentPostSchema = new mongoose.Schema(
       required: true,
     },
     
-    // --- WORKFLOW STATUS ---
+    
     assignedTutorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -38,12 +40,12 @@ const StudentPostSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      // Added 'approved' and 'rejected' for the Admin workflow 
+      
       enum: ["pending", "approved", "rejected", "booked", "completed", "cancelled"],
-      default: "pending", // 'pending' now means "Waiting for Admin Approval" [cite: 122]
+      default: "pending", 
     },
 
-    // --- PAYMENT (Escrow Logic) ---
+    
     paymentStatus: {
       type: String,
       enum: ["unpaid", "escrowed", "released", "refunded"],

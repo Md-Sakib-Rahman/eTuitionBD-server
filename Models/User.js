@@ -18,13 +18,17 @@ const UserSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["active", "banned", "requested"], // 'requested' is useful for pending tutors
+      enum: ["active", "banned", "requested"],  
       default: "active",
     },
     image: {
       type: String,
       default:
         "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp",
+    },
+    phone: {
+      type: String,
+      required:true
     },
     
     tutorData: {
@@ -34,7 +38,6 @@ const UserSchema = new mongoose.Schema(
       hourlyRate: { type: Number },
       experience: { type: Number },
       averageRating: { type: Number, default: 0 },
-      phone: { type: String }, 
       address: { type: String },
       wallet: {
         balance: { type: Number, default: 0 },       

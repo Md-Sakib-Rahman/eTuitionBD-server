@@ -13,6 +13,8 @@ const JobApplicationSchema = new mongoose.Schema(
       required: true,
     },
     
+    
+
     status: {
       type: String,
       enum: ["pending", "accepted", "rejected"],
