@@ -466,12 +466,35 @@
       res.status(500).send({ message: "Failed to fetch applications" });
     }
   });
+app.get("/public-tutors/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
 
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid Tutor ID" });
+    }
+
+    const tutor = await User.findOne({ _id: id, role: "tutor" })
+      .select("-password -__v -studentData"); 
+
+   
+    if (!tutor) {
+      return res.status(404).send({ message: "Tutor not found or is not active" });
+    }
+
+    res.send(tutor);
+  } catch (error) {
+    console.error("Public Tutor Fetch Error:", error);
+    res.status(500).send({ message: "Server Error" });
+  }
+});
   app.get("/all-posts", async (req, res) => {
     try {
       const query = { status: "approved" };
 
       const posts = await StudentPost.find(query)
+        .populate("studentId", "name image")
         .sort({ createdAt: -1 })
         .select("-__v");
 
@@ -570,7 +593,35 @@
       res.status(500).send({ message: "Failed to fetch user data" });
     }
   });
+app.get("/all-tutors", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 8;
+    const skip = (page - 1) * limit;
 
+    const query = { role: "tutor", status: "active" };
+
+    // 1. Get the data
+    const tutors = await User.find(query)
+      .select("name email image location tutorData")
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    // 2. Count total documents for pagination logic
+    const total = await User.countDocuments(query);
+
+    // 3. Send object with data AND meta info
+    res.send({
+      tutors,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+    });
+  } catch (error) {
+    console.error("Fetch Tutors Error:", error);
+    res.status(500).send({ message: "Failed to fetch tutors" });
+  }
+});
   app.patch(
     "/users/admin-update/:id",
     verifyToken,
