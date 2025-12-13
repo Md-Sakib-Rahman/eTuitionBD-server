@@ -12,12 +12,12 @@
   const JobApplication = require("./Models/JobApplication");
   const TuitionSession = require("./Models/TuitionSession");
   app.use(express.json());
-  app.use(
-    cors({
-      origin: ["http://localhost:5173", "http://192.168.10.167:5173"],
-      credentials: true,
-    })
-  );
+    app.use(
+      cors({
+        origin: ["http://localhost:5173", "http://192.168.10.167:5173", "https://e-tuition-bd-client.vercel.app"],
+        credentials: true,
+      })
+    );
   app.use(cookieParser());
   const admin = require("firebase-admin");
 
