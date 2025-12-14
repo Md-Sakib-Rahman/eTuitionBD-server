@@ -604,17 +604,17 @@ app.get("/all-tutors", async (req, res) => {
 
     const query = { role: "tutor", status: "active" };
 
-    // 1. Get the data
+     
     const tutors = await User.find(query)
       .select("name email image location tutorData")
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
 
-    // 2. Count total documents for pagination logic
+    
     const total = await User.countDocuments(query);
 
-    // 3. Send object with data AND meta info
+     
     res.send({
       tutors,
       totalPages: Math.ceil(total / limit),
@@ -737,9 +737,9 @@ app.get("/admin/tuitions/:id", verifyToken, verifyAdmin, async (req, res) => {
 app.patch("/admin/tuitions/:id", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const id = req.params.id;
-    const { status } = req.body; // Expecting 'approved' or 'rejected'
+    const { status } = req.body;  
 
-    // Security: Validate status
+     
     if (!["approved", "rejected", "pending"].includes(status)) {
       return res.status(400).send({ message: "Invalid status" });
     }
@@ -1002,8 +1002,8 @@ app.post("/etutionbd/payment", verifyToken, async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
-      success_url: `http://localhost:5173/student-dashboard/payment/success?session_id={CHECKOUT_SESSION_ID}&applicationId=${applicationId}`,
-      cancel_url: "http://localhost:5173/cancel_page",
+      success_url: `https://e-tuition-bd-client.vercel.app/student-dashboard/payment/success?session_id={CHECKOUT_SESSION_ID}&applicationId=${applicationId}`,
+      cancel_url: "https://e-tuition-bd-client.vercel.app/cancel_page",
       customer_email: req.user.email,
       client_reference_id: application._id.toString(),
 
