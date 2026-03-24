@@ -9,6 +9,7 @@ const {
   adminUpdateUser,
   adminDeleteUser,
   getUserById,
+  getPublicTutorById,
 } = require("../controllers/userController");
 
 const {
@@ -23,7 +24,7 @@ const {
  * Accessed by: Everyone
  */
 router.get("/all-tutors", getAllPublicTutors);
-
+router.get("/public-tutors/:id", getPublicTutorById);
 // --- PROTECTED ROUTES (Requires Login) ---
 /**
  * Route to register/save a new user to DB

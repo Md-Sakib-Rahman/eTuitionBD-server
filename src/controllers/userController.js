@@ -183,7 +183,23 @@ const getUserById = async (req, res) => {
   }
 };
 
+const getPublicTutorById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // We only select the fields that are safe for the public to see
+    const tutor = await User.findById(id).select("name email image tutorData role");
 
+    if (!tutor || tutor.role !== "tutor") {
+      return res.status(404).send({ message: "Tutor not found" });
+    }
+
+    res.send(tutor);
+  } catch (error) {
+    console.error("Fetch Public Tutor Error:", error);
+    res.status(500).send({ message: "Internal Server Error" });
+  }
+};
 
 module.exports = {
   registerUser,
@@ -193,5 +209,6 @@ module.exports = {
   adminGetAllUsers,
   adminUpdateUser,
   adminDeleteUser,
-  getUserById
+  getUserById,
+  getPublicTutorById
 };
