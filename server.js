@@ -16,14 +16,14 @@ try {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
-  console.log("🔥 Firebase Admin Initialized");
+  console.log("  Firebase Admin Initialized");
 } catch (error) {
-  console.error("❌ Firebase Initialization Error:", error.message);
+  console.error(" Firebase Initialization Error:", error.message);
 }
 
 // --- Connect Database & Start Server ---
 connectDB().then(() => {
   app.listen(port, () => {
-    console.log(`📡 Server listening on port ${port}`);
+    console.log(`  Server listening on port ${port}`);
   });
 });
