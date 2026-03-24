@@ -9,9 +9,9 @@ const postRoutes = require("./routes/postRoutes");
 const applicationRoutes = require("./routes/applicationRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+
 const app = express();
 
-// --- Global Middlewares ---
 app.use(express.json());
 app.use(cookieParser());
 app.use(
@@ -25,7 +25,14 @@ app.use(
   })
 );
 
-// --- Route Registrations ---
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "eTuitionBD API is running 🚀",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development"
+  });
+});
+
 app.use(authRoutes);
 app.use(userRoutes);
 app.use(postRoutes);
@@ -33,9 +40,17 @@ app.use(applicationRoutes);
 app.use(paymentRoutes);
 app.use(analyticsRoutes);
 
-// Health Check / Default Route
-app.get("/", (req, res) => {
-  res.send("eTuitionBD API is running in MVC mode 🚀");
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: "Route not found" });
+});
+
+app.use((err, req, res, next) => {
+  console.error("Global Error Log:", err.stack);
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error",
+    error: process.env.NODE_ENV === "development" ? err.message : "Something went wrong"
+  });
 });
 
 module.exports = app;
