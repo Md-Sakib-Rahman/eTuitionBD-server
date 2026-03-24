@@ -61,6 +61,9 @@ const verifyFirebaseAuth = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Firebase Verification Error:", error);
+    if (error.code === 'auth/id-token-expired') {
+      return res.status(401).send({ message: "Token expired", code: "auth/id-token-expired" });
+    }
     return res.status(403).send({ message: "Forbidden access: Invalid token" });
   }
 };
