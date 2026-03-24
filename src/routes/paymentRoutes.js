@@ -5,7 +5,8 @@ const {
   verifyPayment,
   completeSession,
   getAllSessions,
-  getTutorSessions
+  getTutorSessions,
+  getStudentSessions
 } = require("../controllers/paymentController");
 
 const { verifyToken, verifyAdmin } = require("../middleware/authMiddleware");
@@ -31,6 +32,7 @@ router.post("/etutionbd/payment-success", verifyPayment);
  */
 router.patch("/sessions/:id/complete", completeSession);
 
+router.get("/my-sessions", getStudentSessions);
 router.get("/tutor/my-sessions", getTutorSessions);
 router.get("/getallsessions", verifyAdmin, getAllSessions);
 

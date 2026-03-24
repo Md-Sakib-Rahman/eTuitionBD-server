@@ -3,6 +3,7 @@ const JobApplication = require("../Models/JobApplication");
 const StudentPost = require("../Models/StudentPost");
 const TuitionSession = require("../Models/TuitionSession");
 const User = require("../Models/User");
+const { sendHiringEmail } = require("../utils/email");
 
 /**
  * Create a Stripe Checkout Session
@@ -12,7 +13,10 @@ const createCheckoutSession = async (req, res) => {
   try {
     const { applicationId } = req.body;
     const userId = req.user.id;
-
+    if (!process.env.CLIENT_URL) {
+      console.error("❌ ERROR: CLIENT_URL is not defined in .env");
+      return res.status(500).send({ message: "Server configuration error. Please contact admin." });
+    }
     const application = await JobApplication.findById(applicationId)
       .populate("postId")
       .populate("tutorId");
@@ -64,58 +68,70 @@ const verifyPayment = async (req, res) => {
   try {
     const { sessionId, applicationId } = req.body;
 
+    // 1. Verify payment status with Stripe
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     if (session.payment_status !== "paid") {
-      return res.status(400).send({
-        success: false,
-        message: "Payment not verified.",
+      return res.status(400).send({ success: false, message: "Payment not verified." });
+    }
+
+    // 2. NESTED POPULATE (This is the fix)
+    // We grab the Tutor details AND the Student details inside the Post
+    const application = await JobApplication.findById(applicationId)
+      .populate("tutorId", "name email") // Populates the tutor
+      .populate({
+        path: "postId",
+        populate: { path: "studentId", select: "name email phone studentData" } // Deep populates the student
       });
+
+    if (!application) {
+      return res.status(404).send({ message: "Job application data lost." });
     }
 
-    const application = await JobApplication.findById(applicationId).populate("postId");
-    if (!application) return res.status(404).send({ message: "Job not found" });
+    // --- LOGGING FOR PEACE OF MIND ---
+    console.log("Recipient Email:", application.tutorId?.email);
 
-    // Check if session was already processed to prevent duplicates
-    const existingSession = await TuitionSession.findOne({ transactionId: sessionId });
-    if (existingSession) {
-      return res.send({ success: true, message: "Session already active" });
-    }
-
-    // Create the Tuition Session (Funds are now in 'Escrow')
+    // 3. Create the Tuition Session (Escrow)
     const newSession = new TuitionSession({
       postId: application.postId._id,
-      studentId: req.user.id,
-      tutorId: application.tutorId,
+      studentId: application.postId.studentId._id,
+      tutorId: application.tutorId._id,
       amount: application.postId.budget,
       transactionId: sessionId,
       status: "ongoing",
     });
     await newSession.save();
 
-    // Update Post to 'booked'
+    // 4. Update the Post Status
     await StudentPost.findByIdAndUpdate(application.postId._id, {
       status: "booked",
       paymentStatus: "escrowed",
-      onboardStatus: "onGoing",
-      assignedTutorId: application.tutorId,
+      assignedTutorId: application.tutorId._id,
     });
 
-    // Update Application status
+    // 5. Update Application Statuses
     await JobApplication.findByIdAndUpdate(applicationId, { status: "accepted" });
-
-    // Reject all other applications for this post
     await JobApplication.updateMany(
       { postId: application.postId._id, _id: { $ne: applicationId } },
       { status: "rejected" }
     );
 
-    res.send({ success: true, message: "Payment Verified & Tuition Started!" });
+    // 6. SEND THE EMAIL (Recipient is now 100% defined)
+    if (application.tutorId?.email) {
+      sendHiringEmail(
+        application.tutorId.email,
+        application.tutorId.name,
+        application.postId.studentId, // Full student object for contact details
+        application.postId.subject
+      ).catch(err => console.error("Hiring Mail Error:", err));
+    }
+
+    res.send({ success: true, message: "Tutor hired and notified!" });
+
   } catch (error) {
-    console.error("Payment Success logic error:", error);
-    res.status(500).send({ message: "Failed to process payment success" });
+    console.error("Payment Verification Error:", error);
+    res.status(500).send({ message: "Failed to verify payment." });
   }
 };
-
 /**
  * Complete Session & Release Funds
  * Triggered by the Student when they are satisfied.
@@ -211,10 +227,42 @@ const getTutorSessions = async (req, res) => {
     res.status(500).send({ message: "Failed to fetch sessions" });
   }
 };
+
+
+/**
+ * GET: Fetch all sessions for the logged-in STUDENT
+ */
+const getStudentSessions = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+
+    if (req.user.role !== "student") {
+      return res.status(403).send({ message: "Forbidden: Students only." });
+    }
+
+    const sessions = await TuitionSession.find({ studentId })
+      .populate({
+        path: "postId",
+        select: "subject classGrade budget duration",
+      })
+      .populate({
+        path: "tutorId",
+        select: "name email image phone", // Show tutor contact info
+      })
+      .sort({ createdAt: -1 });
+
+    res.send(sessions);
+  } catch (error) {
+    console.error("Fetch Student Sessions Error:", error);
+    res.status(500).send({ message: "Failed to fetch your sessions" });
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   verifyPayment,
   completeSession,
   getAllSessions,
-  getTutorSessions
+  getTutorSessions,
+  getStudentSessions
 };
