@@ -59,6 +59,19 @@ const createCheckoutSession = async (req, res) => {
   }
 };
 
+// A TuitionSession already exists for this payment: replay of the same booking -> same
+// success response with no side effects; any other use of the payment -> 400.
+const respondToExistingSession = (existing, application, req, res) => {
+  const same =
+    String(existing.postId) === String(application.postId._id) &&
+    String(existing.tutorId) === String(application.tutorId._id) &&
+    String(existing.studentId) === String(req.user?.id);
+  if (!same) {
+    return res.status(400).send({ success: false, message: "This payment was already used." });
+  }
+  return res.send({ success: true, message: "Tutor hired and notified!" });
+};
+
 /**
  * Verify Payment Success
  * Called by frontend after Stripe redirect. 
@@ -87,6 +100,14 @@ const verifyPayment = async (req, res) => {
       return res.status(404).send({ message: "Job application data lost." });
     }
 
+    // Idempotency: one paid Stripe session books exactly once. This runs before the
+    // "pending" check below because a legitimate replay arrives after the application
+    // is already "accepted".
+    const existing = await TuitionSession.findOne({ transactionId: sessionId });
+    if (existing) {
+      return respondToExistingSession(existing, application, req, res);
+    }
+
     // Security: the paid session, the caller and the application must all match
     if (String(session.client_reference_id) !== String(applicationId)) {
       return res.status(400).send({ success: false, message: "Payment does not match this application." });
@@ -111,7 +132,16 @@ const verifyPayment = async (req, res) => {
       transactionId: sessionId,
       status: "ongoing",
     });
-    await newSession.save();
+    try {
+      await newSession.save();
+    } catch (err) {
+      if (err?.code === 11000) {
+        // Lost a race against a simultaneous call with the same payment
+        const winner = await TuitionSession.findOne({ transactionId: sessionId });
+        if (winner) return respondToExistingSession(winner, application, req, res);
+      }
+      throw err;
+    }
 
     // 4. Update the Post Status
     await StudentPost.findByIdAndUpdate(application.postId._id, {

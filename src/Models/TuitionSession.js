@@ -32,7 +32,8 @@ const TuitionSessionSchema = new mongoose.Schema(
     },
     transactionId: { 
       type: String,
-      required: true
+      required: true,
+      unique: true
     },
 
    
