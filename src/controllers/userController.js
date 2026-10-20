@@ -1,6 +1,8 @@
 const User = require("../Models/User");
 const mongoose = require("mongoose");
 
+const SELF_REGISTER_ROLES = ["student", "tutor"];
+
 /**
  * Register or Save User to DB
  * Triggered by the saveToDB function in frontend
@@ -15,6 +17,12 @@ const registerUser = async (req, res) => {
       .send({ message: "Forbidden access: You can only register yourself" });
   }
 
+  if (!SELF_REGISTER_ROLES.includes(user.role)) {
+    return res
+      .status(400)
+      .send({ message: "Invalid role. Role must be 'student' or 'tutor'." });
+  }
+
   try {
     const query = { email: user.email };
     const existingUser = await User.findOne(query);
@@ -27,7 +35,11 @@ const registerUser = async (req, res) => {
     const userStatus = user.role === "tutor" ? "requested" : "active";
     
     const newUser = new User({
-      ...user,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+      role: user.role,
+      phone: user.phone,
       status: userStatus,
     });
 
