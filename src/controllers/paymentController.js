@@ -87,6 +87,18 @@ const verifyPayment = async (req, res) => {
       return res.status(404).send({ message: "Job application data lost." });
     }
 
+    // Security: the paid session, the caller and the application must all match
+    if (String(session.client_reference_id) !== String(applicationId)) {
+      return res.status(400).send({ success: false, message: "Payment does not match this application." });
+    }
+    const ownerId = application.postId?.studentId?._id;
+    if (!ownerId || !req.user?.id || ownerId.toString() !== String(req.user.id)) {
+      return res.status(400).send({ success: false, message: "This application can no longer be booked." });
+    }
+    if (application.postId.status !== "approved" || application.status !== "pending") {
+      return res.status(400).send({ success: false, message: "This application can no longer be booked." });
+    }
+
     // --- LOGGING FOR PEACE OF MIND ---
     console.log("Recipient Email:", application.tutorId?.email);
 
